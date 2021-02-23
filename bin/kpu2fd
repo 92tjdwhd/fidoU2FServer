@@ -1,0 +1,124 @@
+#!/usr/bin/env node
+
+/**
+ * Module dependencies.
+ */
+
+const app = require("../app");
+const debug = require("debug")("u2f-fido-server:server");
+const http = require("http");
+const cluster = require("cluster");
+const cpuNum = require("os").cpus().length;
+const args = require("args");
+//cluster.schedulingPolicy = cluster.SCHED_RR;
+/**
+ * Get port from environment and store in Express.
+ */
+
+args
+  .option('port', 'The port on which the app will be running', 61904);
+ 
+const flags = args.parse(process.argv)
+
+var port = normalizePort(flags.port ||process.env.PORT || "61904");
+app.set("port", port);
+
+/**
+ * Create HTTP server.
+ */
+ 
+if (cluster.isMaster) {
+  for (let i = 0; i < 2; i++) {
+    console.log("worket process create");
+    cluster.fork();
+  }
+  
+  cluster.on('exit',(worker, code, signal) => {
+    console.log(`worker ${worker.process.pid} died`);
+    cluster.fork();
+  })
+}else {  
+  /*
+   http.createServer((req, res) => {
+    
+  }).listen(61904);
+
+  console.log(`Worker ${process.pid} started`);
+ */
+
+  let server = http.createServer(app);
+  server.listen(port, "0.0.0.0");
+  server.on("error", onError);
+  server.on("listening", ()=>{
+   // ws.webSocketService(server)
+    var addr = server.address();
+    var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+    debug("Listening on " + bind);
+  });
+  
+  console.log('cluster.worker.process.pid : '+cluster.worker.process.pid,server.address())
+  console.log('cluster.worker.id : '+cluster.worker.id)
+  
+}
+
+
+/**
+ * Listen on provided port, on all network interfaces.
+ */
+
+
+/**
+ * Normalize a port into a number, string, or false.
+ */
+
+function normalizePort(val) {
+  var port = parseInt(val, 10);
+
+  if (isNaN(port)) {
+    // named pipe
+    return val;
+  }
+
+  if (port >= 0) {
+    // port number
+    return port;
+  }
+
+  return false;
+}
+
+/**
+ * Event listener for HTTP server "error" event.
+ */
+
+function onError(error) {
+  if (error.syscall !== "listen") {
+    throw error;
+  }
+
+  var bind = typeof port === "string" ? "Pipe " + port : "Port " + port;
+
+  // handle specific listen errors with friendly messages
+  switch (error.code) {
+    case "EACCES":
+      console.error(bind + " requires elevated privileges");
+      process.exit(1);
+      break;
+    case "EADDRINUSE":
+      console.error(bind + " is already in use");
+      process.exit(1);
+      break;
+    default:
+      throw error;
+  }
+}
+
+/**
+ * Event listener for HTTP server "listening" event.
+ */
+
+function onListening(server) {
+  var addr = server.address();
+  var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
+  debug("Listening on " + bind);
+}
